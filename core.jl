@@ -1,4 +1,6 @@
+# core.jl (фінальна версія 2.0)
 using UUIDs
+using JSON
 
 @enum Status not_started in_progress finished
 
@@ -8,6 +10,24 @@ struct Task
     status::Status
 end
 
+# <-- ДОДАНО: Нова функція для серіалізації -->
+"""
+    serialize_tasks(tasks::Vector{Task})::Vector{Dict{String, Any}}
+
+Перетворює вектор завдань на вектор словників з простими типами,
+готовий для збереження у JSON. Це "чиста" функція Julia.
+"""
+function serialize_tasks(tasks::Vector{Task})::Vector{Dict{String, Any}}
+    serializable_tasks = []
+    for task in tasks
+        push!(serializable_tasks, Dict(
+            "id" => string(task.id), # Правильна конвертація UUID -> String в Julia
+            "description" => task.description,
+            "status" => Int(task.status) # Конвертація Enum -> Int
+        ))
+    end
+    return serializable_tasks
+end
 
 function addTask(tasks::Vector{Task}, description::String)::Vector{Task}
     newTask = Task(uuid4(), description, not_started)
@@ -22,7 +42,7 @@ function changeStatus(tasks::Vector{Task}, id::UUID, newStatus::Status)::Tuple{V
     if newStatus == in_progress
         inProgressCount = count(task -> task.status == in_progress, tasks)
         if inProgressCount >= 5
-            println("Помилка: Не можна мати більше 5 завдань у статусі 'в процесі'.")
+            println("Błąd: Nie można mieć więcej niż 5 zadań w statusie 'w toku'.")
             return (tasks, false)
         end
     end
@@ -40,70 +60,37 @@ end
 
 function showTasks(tasks::Vector{Task})
     if isempty(tasks)
-        println("Список завдань порожній.")
+        println("Lista zadań jest pusta.")
         return
     end
     
-    println("\n--- Список Завдань ---")
+    println("\n--- Lista Zadań ---")
     for task in tasks
         println("ID: $(task.id)")
-        println("  Опис: $(task.description)")
-        println("  Статус: $(task.status)")
+        println("  Opis: $(task.description)")
+        println("  Status: $(task.status)")
         println("-"^20)
     end
 end
 
-# core.jl - Додайте цей код в кінець файлу
-
-# ... (весь ваш попередній код Task, Status, addTask і т.д.) ...
-
-# 4. ФУНКЦІЯ ДЛЯ ВІДНОВЛЕННЯ СТАНУ З ДАНИХ
-# Ця функція буде викликатись з Python для уникнення проблем з типами.
-"""
-    buildTasksFromData(data::Vector)
-
-Приймає вектор (отриманий з Python), де кожен елемент є словником, 
-і створює з нього строго типізований вектор Vector{Task}.
-"""
-function buildTasksFromData(data::Vector)::Vector{Task}
-    # Створюємо порожній, але правильно типізований вектор
+function build_tasks_from_json(json_string::String)::Vector{Task}
     tasks = Vector{Task}()
+    data = JSON.parse(json_string)
     
     for item in data
-        # Конвертуємо дані, що прийшли з Python
         task_uuid = UUIDs.UUID(item["id"])
-        task_status = Status(item["status"]) 
         description = item["description"]
+        task_status = Status(item["status"])
         
         new_task = Task(task_uuid, description, task_status)
-        
-        # Наповнюємо наш вектор, не виходячи з середовища Julia
         push!(tasks, new_task)
     end
     
     return tasks
 end
 
-# core.jl - Додайте цей код в кінець файлу
-
-# ... (весь ваш попередній код) ...
-
-# 5. ФУНКЦІЯ-ДИСПЕТЧЕР ДЛЯ ВИКЛИКІВ З PYTHON
-# Це єдина точка входу, яка вирішує проблему втрати типів.
-"""
-    call_with_typed_state(func_name::String, state::Vector, args...)
-
-Приймає назву функції, вектор стану (який приходить як Vector{Any}) та інші аргументи.
-Примусово конвертує стан до Vector{Task} і викликає справжню функцію.
-"""
 function call_with_typed_state(func_name::String, state::Vector, args...)
-    # Це найважливіший рядок у всьому проекті.
-    # Він перетворює нетипізований вектор з Python у строго типізований вектор Julia.
     typed_state = Vector{Task}(state)
-    
-    # Отримуємо посилання на реальну функцію за її назвою (символом)
     func_to_call = getfield(Main, Symbol(func_name))
-    
-    # Викликаємо реальну функцію з уже правильними типами
     return func_to_call(typed_state, args...)
 end
