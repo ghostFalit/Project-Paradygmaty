@@ -1,55 +1,49 @@
-# core.jl (фінальна версія 2.0)
+# core.jl (English version)
 using UUIDs
 using JSON
 
 @enum Status not_started in_progress finished
 
-struct Task
+# RENAMED: The struct was renamed to avoid conflict with Julia's built-in `Task` type.
+struct TaskItem
     id::UUID
     description::String
     status::Status
 end
 
-# <-- ДОДАНО: Нова функція для серіалізації -->
-"""
-    serialize_tasks(tasks::Vector{Task})::Vector{Dict{String, Any}}
-
-Перетворює вектор завдань на вектор словників з простими типами,
-готовий для збереження у JSON. Це "чиста" функція Julia.
-"""
-function serialize_tasks(tasks::Vector{Task})::Vector{Dict{String, Any}}
+function serialize_tasks(tasks::Vector{TaskItem})::Vector{Dict{String, Any}}
     serializable_tasks = []
     for task in tasks
         push!(serializable_tasks, Dict(
-            "id" => string(task.id), # Правильна конвертація UUID -> String в Julia
+            "id" => string(task.id),
             "description" => task.description,
-            "status" => Int(task.status) # Конвертація Enum -> Int
+            "status" => Int(task.status)
         ))
     end
     return serializable_tasks
 end
 
-function addTask(tasks::Vector{Task}, description::String)::Vector{Task}
-    newTask = Task(uuid4(), description, not_started)
+function addTask(tasks::Vector{TaskItem}, description::String)::Vector{TaskItem}
+    newTask = TaskItem(uuid4(), description, not_started)
     return [tasks..., newTask]
 end
 
-function removeTask(tasks::Vector{Task}, id::UUID)::Vector{Task}
+function removeTask(tasks::Vector{TaskItem}, id::UUID)::Vector{TaskItem}
     return filter(task -> task.id != id, tasks)
 end
 
-function changeStatus(tasks::Vector{Task}, id::UUID, newStatus::Status)::Tuple{Vector{Task}, Bool}
+function changeStatus(tasks::Vector{TaskItem}, id::UUID, newStatus::Status)::Tuple{Vector{TaskItem}, Bool}
     if newStatus == in_progress
         inProgressCount = count(task -> task.status == in_progress, tasks)
         if inProgressCount >= 5
-            println("Błąd: Nie można mieć więcej niż 5 zadań w statusie 'w toku'.")
+            println("Error: Cannot have more than 5 tasks 'in progress'.")
             return (tasks, false)
         end
     end
     
     newTasks = map(tasks) do task
         if task.id == id
-            return Task(task.id, task.description, newStatus)
+            return TaskItem(task.id, task.description, newStatus)
         else
             return task
         end
@@ -58,23 +52,23 @@ function changeStatus(tasks::Vector{Task}, id::UUID, newStatus::Status)::Tuple{V
     return (newTasks, true)
 end
 
-function showTasks(tasks::Vector{Task})
+function showTasks(tasks::Vector{TaskItem})
     if isempty(tasks)
-        println("Lista zadań jest pusta.")
+        println("The task list is empty.")
         return
     end
     
-    println("\n--- Lista Zadań ---")
+    println("\n--- Task List ---")
     for task in tasks
         println("ID: $(task.id)")
-        println("  Opis: $(task.description)")
+        println("  Description: $(task.description)")
         println("  Status: $(task.status)")
         println("-"^20)
     end
 end
 
-function build_tasks_from_json(json_string::String)::Vector{Task}
-    tasks = Vector{Task}()
+function build_tasks_from_json(json_string::String)::Vector{TaskItem}
+    tasks = Vector{TaskItem}()
     data = JSON.parse(json_string)
     
     for item in data
@@ -82,15 +76,16 @@ function build_tasks_from_json(json_string::String)::Vector{Task}
         description = item["description"]
         task_status = Status(item["status"])
         
-        new_task = Task(task_uuid, description, task_status)
+        new_task = TaskItem(task_uuid, description, task_status)
         push!(tasks, new_task)
     end
     
     return tasks
 end
 
+# A helper function to ensure the state vector has the correct type before calling other functions.
 function call_with_typed_state(func_name::String, state::Vector, args...)
-    typed_state = Vector{Task}(state)
+    typed_state = Vector{TaskItem}(state)
     func_to_call = getfield(Main, Symbol(func_name))
     return func_to_call(typed_state, args...)
 end
