@@ -1,15 +1,25 @@
-# core.jl (English version)
+# core.jl (Фінальна українська версія з функцією-шлюзом)
 using UUIDs
 using JSON
 
 @enum Status not_started in_progress finished
 
-# RENAMED: The struct was renamed to avoid conflict with Julia's built-in `Task` type.
 struct TaskItem
     id::UUID
     description::String
     status::Status
 end
+
+# --- Функція-шлюз, що вирішує проблему типів ---
+# Вона приймає будь-який вектор з Python, приводить його до потрібного типу
+# і викликає відповідну функцію.
+function call_with_typed_state(func_name::String, state::Vector, args...)
+    typed_state = Vector{TaskItem}(state)
+    func_to_call = getfield(Main, Symbol(func_name))
+    return func_to_call(typed_state, args...)
+end
+
+# --- Основні функції ядра (залишаються без змін) ---
 
 function serialize_tasks(tasks::Vector{TaskItem})::Vector{Dict{String, Any}}
     serializable_tasks = []
@@ -36,7 +46,7 @@ function changeStatus(tasks::Vector{TaskItem}, id::UUID, newStatus::Status)::Tup
     if newStatus == in_progress
         inProgressCount = count(task -> task.status == in_progress, tasks)
         if inProgressCount >= 5
-            println("Error: Cannot have more than 5 tasks 'in progress'.")
+            println("Помилка: Не можна мати більше 5 завдань у статусі 'в процесі'.")
             return (tasks, false)
         end
     end
@@ -54,15 +64,15 @@ end
 
 function showTasks(tasks::Vector{TaskItem})
     if isempty(tasks)
-        println("The task list is empty.")
+        println("Список завдань порожній.")
         return
     end
     
-    println("\n--- Task List ---")
+    println("\n--- Список завдань ---")
     for task in tasks
         println("ID: $(task.id)")
-        println("  Description: $(task.description)")
-        println("  Status: $(task.status)")
+        println("  Опис: $(task.description)")
+        println("  Статус: $(task.status)")
         println("-"^20)
     end
 end
@@ -81,11 +91,4 @@ function build_tasks_from_json(json_string::String)::Vector{TaskItem}
     end
     
     return tasks
-end
-
-# A helper function to ensure the state vector has the correct type before calling other functions.
-function call_with_typed_state(func_name::String, state::Vector, args...)
-    typed_state = Vector{TaskItem}(state)
-    func_to_call = getfield(Main, Symbol(func_name))
-    return func_to_call(typed_state, args...)
 end

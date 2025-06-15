@@ -1,31 +1,28 @@
-# precompile_script.jl (English version)
+# precompile_script.jl (Фінальна українська версія)
 
 include("core.jl")
 using UUIDs
 using JSON
 
-println("Starting precompilation of functions...")
+println("Запуск попередньої компіляції функцій...")
 
 let
     tasks = Vector{TaskItem}()
     
-    tasks = addTask(tasks, "Compilation test task")
+    # Використовуємо шлюз для компіляції
+    tasks = call_with_typed_state("addTask", tasks, "Тестове завдання")
     
     if !isempty(tasks)
         task_id = tasks[1].id
-        tasks, _ = changeStatus(tasks, task_id, in_progress)
+        tasks, _ = call_with_typed_state("changeStatus", tasks, task_id, in_progress)
+        tasks = call_with_typed_state("removeTask", tasks, task_id)
     end
     
-    serialized = serialize_tasks(tasks)
+    serialized = serialize_tasks(tasks) # Цю можна залишити, бо вона не змінює стан
     json_string = JSON.json(serialized)
-    build_tasks_from_json(json_string)
-    
-    if !isempty(tasks)
-        task_id = tasks[1].id
-        tasks = removeTask(tasks, task_id)
-    end
+    build_tasks_from_json(json_string) # І цю
 
-    showTasks(tasks)
+    call_with_typed_state("showTasks", tasks)
 end
 
-println("Precompilation finished.")
+println("Попередня компіляція завершена.")
